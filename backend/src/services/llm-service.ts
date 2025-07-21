@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -29,25 +29,25 @@ export interface ValidateCodeResponse {
 }
 
 export class LLMService {
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenAI;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY; // Replace with process.env.GEMINI_API_KEY in production
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.genAI = new GoogleGenAI({apiKey: apiKey});
   }
 
   async generateCode(request: GenerateCodeRequest): Promise<GenerateCodeResponse> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
     const prompt = this.buildGenerationPrompt(request);
 
     try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const result = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+      const text = result.text || '';
 
       console.log('LLM response received, length:', text.length);
       return this.parseGenerationResponse(text);
@@ -61,16 +61,17 @@ export class LLMService {
     request: GenerateCodeRequest,
     onChunk?: (chunk: string) => void
   ): Promise<GenerateCodeResponse> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
     const prompt = this.buildGenerationPrompt(request);
 
     try {
-      const result = await model.generateContentStream(prompt);
+      const result = await this.genAI.models.generateContentStream({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
       let fullText = '';
 
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
+      for await (const chunk of result) {
+        const chunkText = chunk.text || '';
         fullText += chunkText;
         
         // Send chunk to client if callback provided
@@ -88,14 +89,14 @@ export class LLMService {
   }
 
   async validateCode(request: ValidateCodeRequest): Promise<ValidateCodeResponse> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
     const prompt = this.buildValidationPrompt(request);
 
     try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const result = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+      const text = result.text || '';
 
       return this.parseValidationResponse(text);
     } catch (error) {

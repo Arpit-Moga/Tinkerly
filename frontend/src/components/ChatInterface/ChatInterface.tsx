@@ -73,11 +73,11 @@ export const ChatInterface: React.FC = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-900">
-          Chat with AI - {selectedFramework?.toUpperCase()}
+      <div className="p-4 border-b border-gray-700">
+        <h3 className="font-semibold text-white">
+          Chat with AI
         </h3>
-        <p className="text-sm text-gray-600 mt-1">
+        <p className="text-sm text-gray-400 mt-1">
           Describe what you want to build and I'll generate the code for you.
         </p>
       </div>
@@ -85,9 +85,9 @@ export const ChatInterface: React.FC = () => {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {chatMessages.length === 0 && (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-400 py-8">
             <p>Start a conversation to generate your {selectedFramework} project!</p>
-            <p className="text-sm mt-2">
+            <p className="text-sm mt-2 text-gray-500">
               Try: "Create a todo app with add, delete, and mark complete features"
             </p>
           </div>
@@ -101,8 +101,8 @@ export const ChatInterface: React.FC = () => {
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 message.role === 'user'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-900'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-700 text-gray-100'
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -115,9 +115,9 @@ export const ChatInterface: React.FC = () => {
 
         {isGenerating && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-4 py-2 flex items-center space-x-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm text-gray-600">Generating code...</span>
+            <div className="bg-gray-700 rounded-lg px-4 py-2 flex items-center space-x-2">
+              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+              <span className="text-sm text-gray-300">Generating code...</span>
             </div>
           </div>
         )}
@@ -126,20 +126,20 @@ export const ChatInterface: React.FC = () => {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-700">
         <form onSubmit={handleSubmit} className="flex space-x-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Describe what you want to build..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             disabled={isGenerating}
           />
           <button
             type="submit"
             disabled={!input.trim() || isGenerating}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+            className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-1"
           >
             <Send className="w-4 h-4" />
           </button>

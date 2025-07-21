@@ -11,12 +11,12 @@ export const LivePreview: React.FC = () => {
     setPreviewUrl,
     isWebContainerReady,
     setIsWebContainerReady,
+    addLog,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const webContainerManagerRef = useRef<WebContainerManager | null>(null);
 
@@ -30,11 +30,11 @@ export const LivePreview: React.FC = () => {
           }
           await webContainerManagerRef.current.initialize();
           setIsWebContainerReady(true);
-          addLog('WebContainer initialized successfully');
+          addLog('✅ WebContainer initialized successfully');
         } catch (err) {
           console.error('Failed to initialize WebContainer:', err);
           setError('Failed to initialize WebContainer. Please refresh the page.');
-          addLog('Failed to initialize WebContainer');
+          addLog('❌ Failed to initialize WebContainer');
         }
       };
 
@@ -47,10 +47,10 @@ export const LivePreview: React.FC = () => {
         webContainerManagerRef.current.cleanup();
       }
     };
-  }, [generatedFiles, isWebContainerReady, setIsWebContainerReady]);
+  }, [generatedFiles, isWebContainerReady, setIsWebContainerReady, addLog]);
 
-  const addLog = (message: string) => {
-    setLogs(prev => [...prev.slice(-19), `${new Date().toLocaleTimeString()}: ${message}`]);
+  const addLogWithTimestamp = (message: string) => {
+    addLog(`${new Date().toLocaleTimeString()}: ${message}`);
   };
 
   const startPreview = async () => {
@@ -60,7 +60,7 @@ export const LivePreview: React.FC = () => {
 
     setIsStarting(true);
     setError(null);
-    addLog('Initializing preview...');
+    addLogWithTimestamp('🚀 Initializing preview...');
 
     try {
       // Initialize WebContainer if not ready
@@ -69,28 +69,28 @@ export const LivePreview: React.FC = () => {
       }
       
       if (!isWebContainerReady) {
-        addLog('Initializing WebContainer...');
+        addLogWithTimestamp('⚡ Initializing WebContainer...');
         await webContainerManagerRef.current.initialize();
         setIsWebContainerReady(true);
-        addLog('WebContainer ready');
+        addLogWithTimestamp('✅ WebContainer ready');
       }
 
       // Create project with generated files
-      addLog('Mounting project files...');
+      addLogWithTimestamp('📁 Mounting project files...');
       await webContainerManagerRef.current.createProject(generatedFiles);
-      addLog('Project files mounted successfully');
+      addLogWithTimestamp('✅ Project files mounted successfully');
 
       // Install dependencies
-      addLog('Installing dependencies (this may take a moment)...');
+      addLogWithTimestamp('📦 Installing dependencies (this may take a moment)...');
       await webContainerManagerRef.current.installDependencies((data) => {
         if (data.trim()) {
           addLog(`npm: ${data.trim()}`);
         }
       });
-      addLog('Dependencies installed successfully');
+      addLogWithTimestamp('✅ Dependencies installed successfully');
 
       // Start dev server
-      addLog('Starting development server...');
+      addLogWithTimestamp('🔄 Starting development server...');
       const url = await webContainerManagerRef.current.startDevServer((data) => {
         if (data.trim()) {
           addLog(`dev: ${data.trim()}`);
@@ -99,12 +99,12 @@ export const LivePreview: React.FC = () => {
 
       setPreviewUrl(url);
       setIsRunning(true);
-      addLog(`🎉 Preview ready at: ${url}`);
+      addLogWithTimestamp(`🎉 Preview ready at: ${url}`);
     } catch (err) {
       console.error('Failed to start preview:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to start preview';
       setError(errorMessage);
-      addLog(`❌ Error: ${errorMessage}`);
+      addLogWithTimestamp(`❌ Error: ${errorMessage}`);
     } finally {
       setIsStarting(false);
     }
@@ -115,14 +115,14 @@ export const LivePreview: React.FC = () => {
       await webContainerManagerRef.current.stopDevServer();
       setIsRunning(false);
       setPreviewUrl(null);
-      addLog('Preview stopped');
+      addLogWithTimestamp('🛑 Preview stopped');
     }
   };
 
   const refreshPreview = () => {
     if (iframeRef.current) {
       iframeRef.current.src = iframeRef.current.src;
-      addLog('Preview refreshed');
+      addLogWithTimestamp('🔄 Preview refreshed');
     }
   };
 
@@ -138,14 +138,21 @@ export const LivePreview: React.FC = () => {
                          !isRunning;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-gray-900">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-900">Live Preview</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {isRunning ? 'Running' : 'Ready to preview your application'}
+            <h3 className="font-semibold text-white">Live Preview</h3>
+            <p className="text-sm text-gray-400 mt-1">
+              {isRunning ? (
+                <span className="flex items-center space-x-1">
+                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                  <span>Running</span>
+                </span>
+              ) : (
+                'Ready to preview your application'
+              )}
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -153,7 +160,7 @@ export const LivePreview: React.FC = () => {
               <button
                 onClick={startPreview}
                 disabled={!canStartPreview}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-1"
               >
                 {isStarting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -166,13 +173,13 @@ export const LivePreview: React.FC = () => {
               <>
                 <button
                   onClick={refreshPreview}
-                  className="btn-secondary flex items-center space-x-1"
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-lg transition-colors flex items-center space-x-1"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={openInNewTab}
-                  className="btn-secondary flex items-center space-x-1"
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-lg transition-colors flex items-center space-x-1"
                 >
                   <ExternalLink className="w-4 h-4" />
                 </button>
@@ -192,67 +199,56 @@ export const LivePreview: React.FC = () => {
       {/* Content */}
       <div className="flex-1 flex flex-col">
         {error && (
-          <div className="p-4 bg-red-50 border-b border-red-200">
-            <div className="flex items-center space-x-2 text-red-700">
+          <div className="p-4 bg-red-900/20 border-b border-red-800">
+            <div className="flex items-center space-x-2 text-red-400">
               <AlertCircle className="w-4 h-4" />
               <span className="text-sm">{error}</span>
             </div>
           </div>
         )}
 
-        {!isWebContainerReady ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
-              <p className="text-gray-600">Initializing WebContainer...</p>
-            </div>
-          </div>
-        ) : !selectedFramework ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+        {!selectedFramework ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
               <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Select a framework to start</p>
             </div>
           </div>
         ) : Object.keys(generatedFiles).length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
               <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Generate code to see live preview</p>
             </div>
           </div>
         ) : previewUrl ? (
-          <div className="flex-1">
+          <div className="flex-1 bg-white">
             <iframe
               ref={iframeRef}
               src={previewUrl}
-              className="w-full h-full border-0"
+              className="w-full h-full border-0 rounded-lg"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
               title="Live Preview"
             />
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
-              <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Click "Start" to begin live preview</p>
+              {isStarting ? (
+                <>
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-400" />
+                  <p>Starting preview...</p>
+                </>
+              ) : (
+                <>
+                  <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Click "Start" to begin live preview</p>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* Logs Panel */}
-        {logs.length > 0 && (
-          <div className="h-32 border-t border-gray-200 bg-gray-900 text-green-400 font-mono text-xs overflow-y-auto">
-            <div className="p-2">
-              <div className="text-gray-400 mb-1">Console Output:</div>
-              {logs.map((log, index) => (
-                <div key={index} className="whitespace-pre-wrap">
-                  {log}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

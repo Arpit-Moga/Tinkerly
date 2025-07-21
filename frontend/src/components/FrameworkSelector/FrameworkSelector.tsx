@@ -50,10 +50,10 @@ export const FrameworkSelector: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
+        <h2 className="text-xl font-semibold text-white mb-2">
           Choose Your Framework
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-400">
           Select a framework to start generating code with AI assistance.
         </p>
       </div>
@@ -63,17 +63,17 @@ export const FrameworkSelector: React.FC = () => {
           <button
             key={framework.id}
             onClick={() => handleFrameworkSelect(framework.id)}
-            className="card hover:shadow-md transition-shadow text-left group"
+            className="bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg p-4 transition-all text-left group hover:border-purple-500"
           >
             <div className="flex items-start space-x-4">
               <div className={`w-12 h-12 ${framework.color} rounded-lg flex items-center justify-center text-white text-xl`}>
                 {framework.icon}
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                <h3 className="font-semibold text-white group-hover:text-purple-400 transition-colors">
                   {framework.name}
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-400 mt-1">
                   {framework.description}
                 </p>
               </div>

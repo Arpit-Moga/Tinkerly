@@ -76,8 +76,8 @@ export const SimpleCodeEditor: React.FC = () => {
     return nodes.map(node => (
       <div key={node.path}>
         <div
-          className={`flex items-center space-x-2 px-2 py-1 cursor-pointer hover:bg-gray-100 ${
-            selectedFile === node.path ? 'bg-primary-50 text-primary-700' : ''
+          className={`flex items-center space-x-2 px-2 py-1 cursor-pointer hover:bg-gray-700 ${
+            selectedFile === node.path ? 'bg-purple-600 text-white' : 'text-gray-300'
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => {
@@ -113,29 +113,29 @@ export const SimpleCodeEditor: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-gray-900">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-900">Code Editor</h3>
-        <p className="text-sm text-gray-600 mt-1">
+      <div className="p-4 border-b border-gray-700">
+        <h3 className="font-semibold text-white">Code Editor</h3>
+        <p className="text-sm text-gray-400 mt-1">
           {Object.keys(generatedFiles).length} files generated
         </p>
       </div>
 
       {Object.keys(generatedFiles).length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-gray-500">
+        <div className="flex-1 flex items-center justify-center text-gray-400">
           <div className="text-center">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No files generated yet</p>
-            <p className="text-sm mt-1">Start a conversation to generate code</p>
+            <p className="text-sm mt-1 text-gray-500">Start a conversation to generate code</p>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex">
           {/* File Tree */}
-          <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
+          <div className="w-1/3 border-r border-gray-700 overflow-y-auto bg-gray-800">
             <div className="p-2">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
                 Files
               </h4>
               {renderFileTree(fileTree)}
@@ -143,11 +143,11 @@ export const SimpleCodeEditor: React.FC = () => {
           </div>
 
           {/* Simple Text Editor */}
-          <div className="flex-1">
+          <div className="flex-1 bg-gray-900">
             {selectedFile ? (
               <div className="h-full flex flex-col">
-                <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
-                  <span className="text-sm font-medium text-gray-700">
+                <div className="px-4 py-2 border-b border-gray-700 bg-gray-800">
+                  <span className="text-sm font-medium text-gray-300">
                     {selectedFile}
                   </span>
                 </div>
@@ -155,14 +155,14 @@ export const SimpleCodeEditor: React.FC = () => {
                   <textarea
                     value={generatedFiles[selectedFile] || ''}
                     onChange={handleTextareaChange}
-                    className="w-full h-full p-4 font-mono text-sm border-0 resize-none focus:outline-none focus:ring-0"
+                    className="w-full h-full p-4 font-mono text-sm border-0 resize-none focus:outline-none focus:ring-0 bg-gray-900 text-gray-100"
                     style={{ fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }}
                     spellCheck={false}
                   />
                 </div>
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center text-gray-400">
                 <div className="text-center">
                   <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Select a file to edit</p>

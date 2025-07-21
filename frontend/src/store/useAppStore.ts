@@ -41,6 +41,11 @@ interface AppState {
   // WebContainer state
   isWebContainerReady: boolean;
   setIsWebContainerReady: (ready: boolean) => void;
+
+  // Console logs
+  logs: string[];
+  addLog: (log: string) => void;
+  clearLogs: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -79,4 +84,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   // WebContainer state
   isWebContainerReady: false,
   setIsWebContainerReady: (ready) => set({ isWebContainerReady: ready }),
+
+  // Console logs
+  logs: [],
+  addLog: (log) => set((state) => ({ logs: [...state.logs, log] })),
+  clearLogs: () => set({ logs: [] }),
 }));

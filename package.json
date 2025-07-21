@@ -1,0 +1,19 @@
+{
+  "name": "llm-code-generator",
+  "version": "1.0.0",
+  "description": "LLM-driven code generation platform with live preview",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
+  },
+  "keywords": ["llm", "code-generation", "webcontainers", "react", "vue", "svelte", "angular"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

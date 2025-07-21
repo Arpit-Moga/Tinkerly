@@ -45,7 +45,10 @@ export class LLMService {
     try {
       const result = await this.genAI.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: prompt
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
       });
       const text = result.text || '';
 
@@ -66,7 +69,10 @@ export class LLMService {
     try {
       const result = await this.genAI.models.generateContentStream({
         model: 'gemini-2.5-flash',
-        contents: prompt
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
       });
       let fullText = '';
 
@@ -94,7 +100,10 @@ export class LLMService {
     try {
       const result = await this.genAI.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: prompt
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
       });
       const text = result.text || '';
 

@@ -102,6 +102,18 @@ export default {
         include: ['src'],
         references: [{ path: './tsconfig.node.json' }]
       }, null, 2),
+      'tsconfig.node.json': JSON.stringify({
+        compilerOptions: {
+          composite: true,
+          skipLibCheck: true,
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          allowSyntheticDefaultImports: true,
+          strict: true,
+          noEmit: true
+        },
+        include: ['vite.config.ts']
+      }, null, 2),
       'src/main.tsx': `import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'

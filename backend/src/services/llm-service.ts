@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -47,7 +47,8 @@ export class LLMService {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: this.getCodeGenerationSchema()
         }
       });
       const text = result.text || '';
@@ -71,7 +72,8 @@ export class LLMService {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: this.getCodeGenerationSchema()
         }
       });
       let fullText = '';
@@ -102,7 +104,8 @@ export class LLMService {
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: this.getCodeValidationSchema()
         }
       });
       const text = result.text || '';
@@ -125,6 +128,85 @@ export class LLMService {
     };
 
     return templates[framework as keyof typeof templates] || {};
+  }
+
+  /**
+   * Get JSON schema for code generation response
+   * This enforces the exact structure Gemini should return
+   */
+  private getCodeGenerationSchema() {
+    return {
+      type: Type.OBJECT,
+      properties: {
+        files: {
+          type: Type.ARRAY,
+          description: "An array of objects, where each object represents a file.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              fileName: {
+                type: Type.STRING,
+                description: "The full path of the file (e.g., 'src/App.tsx')."
+              },
+              fileContent: {
+                type: Type.STRING,
+                description: "The complete content of the file."
+              }
+            },
+            required: ["fileName", "fileContent"]
+          }
+        },
+        explanation: {
+          type: Type.STRING,
+          description: "Brief conversational explanation of what was created (2-3 sentences max, no code)"
+        },
+        suggestions: {
+          type: Type.ARRAY,
+          description: "Array of helpful suggestions for the user",
+          items: {
+            type: Type.STRING
+          }
+        }
+      },
+      required: ["files", "explanation", "suggestions"]
+    };
+  }
+
+  /**
+   * Get JSON schema for code validation response
+   */
+  private getCodeValidationSchema() {
+    return {
+      type: Type.OBJECT,
+      properties: {
+        isValid: {
+          type: Type.BOOLEAN,
+          description: "Whether the code is valid"
+        },
+        errors: {
+          type: Type.ARRAY,
+          description: "Array of error messages",
+          items: {
+            type: Type.STRING
+          }
+        },
+        warnings: {
+          type: Type.ARRAY,
+          description: "Array of warning messages",
+          items: {
+            type: Type.STRING
+          }
+        },
+        suggestions: {
+          type: Type.ARRAY,
+          description: "Array of improvement suggestions",
+          items: {
+            type: Type.STRING
+          }
+        }
+      },
+      required: ["isValid", "errors", "warnings", "suggestions"]
+    };
   }
 
   private buildGenerationPrompt(request: GenerateCodeRequest): string {
@@ -160,29 +242,17 @@ CRITICAL REQUIREMENTS:
 9. Ensure the project can run with 'npm install && npm run dev'
 10. Handle edge cases and provide good UX
 
-RESPONSE FORMAT - RESPOND WITH ONLY THIS JSON (NO MARKDOWN, NO EXPLANATION OUTSIDE JSON):
-{
-  "files": {
-    "package.json": "complete package.json with all dependencies",
-    "src/App.tsx": "main application component",
-    "src/main.tsx": "entry point",
-    "index.html": "HTML template",
-    "vite.config.ts": "build configuration",
-    "tailwind.config.js": "tailwind configuration",
-    "tsconfig.json": "typescript configuration",
-    "postcss.config.js": "postcss configuration",
-    "src/index.css": "main CSS file with Tailwind imports"
-  },
-  "explanation": "Brief conversational response explaining what was created (2-3 sentences max, NO CODE)",
-  "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
-}
+RESPONSE FORMAT:
+The response will be automatically structured as JSON with these fields:
+- "files": Array of objects, where each object has "fileName" (string) and "fileContent" (string)
+- "explanation": Brief conversational explanation (2-3 sentences, no code)
+- "suggestions": Array of helpful suggestions for the user
 
-CRITICAL: 
-- Start your response immediately with { and end with }
-- NO markdown code blocks, NO explanatory text outside the JSON
-- The "explanation" field should ONLY contain a brief description of what was built
-- DO NOT include any code, file contents, or technical details in the explanation
-- Keep explanation conversational and user-friendly
+IMPORTANT NOTES:
+- File contents should be complete and ready to use
+- Include ALL necessary files for the project to work
+- The explanation should be user-friendly and describe what was built
+- Suggestions should be actionable next steps or improvements
 
 FRAMEWORK SPECIFIC REQUIREMENTS:
 
@@ -230,74 +300,49 @@ Check for:
 
   private parseGenerationResponse(text: string): GenerateCodeResponse {
     try {
-      console.log('Raw LLM response:', text.substring(0, 500) + '...');
+      console.log('LLM response received, parsing JSON...');
       
-      // Try multiple JSON extraction patterns
-      let jsonText = '';
+      const parsed = JSON.parse(text);
       
-      // Pattern 1: JSON code block
-      const jsonBlockMatch = text.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonBlockMatch) {
-        jsonText = jsonBlockMatch[1];
-      } else {
-        // Pattern 2: Find JSON object
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonText = jsonMatch[0];
-        } else {
-          // Pattern 3: Extract between first { and last }
-          const firstBrace = text.indexOf('{');
-          const lastBrace = text.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            jsonText = text.substring(firstBrace, lastBrace + 1);
-          }
+      if (!parsed.files || !Array.isArray(parsed.files)) {
+        throw new Error('Invalid response: missing or invalid files array');
+      }
+      
+      // Convert the array of file objects into a Record<string, string>
+      const filesRecord: Record<string, string> = parsed.files.reduce((acc: Record<string, string>, file: any) => {
+        if (file && typeof file.fileName === 'string' && typeof file.fileContent === 'string') {
+          acc[file.fileName] = file.fileContent;
         }
-      }
+        return acc;
+      }, {});
 
-      if (!jsonText) {
-        console.error('No JSON found in response');
-        throw new Error('No valid JSON found in response');
-      }
-
-      console.log('Extracted JSON:', jsonText.substring(0, 200) + '...');
+      console.log(`✅ Successfully parsed response with ${Object.keys(filesRecord).length} files`);
       
-      const parsed = JSON.parse(jsonText);
-
-      // Ensure all required fields exist
-      const response = {
-        files: parsed.files || {},
-        message: parsed.explanation || parsed.message || 'Code generated successfully!',
+      return {
+        files: filesRecord,
+        message: parsed.explanation || 'Code generated successfully',
         suggestions: parsed.suggestions || []
       };
-
-      console.log('Parsed response keys:', Object.keys(response));
-      console.log('Files count:', Object.keys(response.files).length);
-
-      return response;
     } catch (error) {
-      console.error('Failed to parse generation response:', error);
-      console.error('Raw text length:', text.length);
+      console.error('❌ Failed to parse generation response:', error);
+      console.log('Raw response:', text.substring(0, 1000) + '...');
       
-      // Fallback response
       return {
         files: {},
-        message: 'I generated some code but had trouble formatting the response. Please try again.',
-        suggestions: []
+        message: 'Failed to generate code. The AI response was malformed. Please try again.',
+        suggestions: ['Try rephrasing your request', 'Be more specific about requirements']
       };
     }
   }
 
+
   private parseValidationResponse(text: string): ValidateCodeResponse {
     try {
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+      console.log('Parsing validation response...');
       
-      if (!jsonMatch) {
-        throw new Error('No valid JSON found in validation response');
-      }
-
-      const jsonText = jsonMatch[1] || jsonMatch[0];
-      const parsed = JSON.parse(jsonText);
-
+      // With responseSchema, Gemini should return properly formatted JSON
+      const parsed = JSON.parse(text);
+      
       return {
         isValid: parsed.isValid || false,
         errors: parsed.errors || [],
@@ -305,15 +350,19 @@ Check for:
         suggestions: parsed.suggestions || []
       };
     } catch (error) {
-      console.error('Failed to parse validation response:', error);
+      console.error('❌ Failed to parse validation response:', error);
+      console.log('Raw response:', text.substring(0, 500) + '...');
+      
+      // Fallback response
       return {
         isValid: false,
-        errors: ['Failed to validate code'],
+        errors: ['Failed to parse validation response'],
         warnings: [],
-        suggestions: []
+        suggestions: ['Try validating again', 'Check your code syntax']
       };
     }
   }
+
 
   private getFrameworkSpecificInstructions(framework: string): string {
     switch (framework) {

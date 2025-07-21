@@ -379,7 +379,7 @@ export class AppComponent {
         version: '1.0.0',
         type: 'module',
         scripts: {
-          dev: 'tsx watch src/index.ts',
+          dev: 'tsx watch --clear-screen=false src/index.ts',
           build: 'tsc',
           start: 'node dist/index.js'
         },
@@ -415,27 +415,44 @@ export class AppComponent {
 import cors from 'cors';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Routes
 app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to Node.js API!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    port: PORT
   });
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', service: 'nodejs-app' });
+  res.json({ 
+    status: 'OK', 
+    service: 'nodejs-app',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/users', (req, res) => {
+  res.json([
+    { id: 1, name: 'John Doe', email: 'john@example.com' },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
+  ]);
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(\`🚀 Server running on http://0.0.0.0:\${PORT}\`);
+  console.log(\`📱 Health check: http://0.0.0.0:\${PORT}/api/health\`);
 });`
     };
   }

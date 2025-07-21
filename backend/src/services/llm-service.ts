@@ -1,4 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+dotenv.config();
+
 
 export interface GenerateCodeRequest {
   prompt: string;
@@ -28,7 +31,7 @@ export class LLMService {
   private genAI: GoogleGenerativeAI;
 
   constructor() {
-    const apiKey = "AIzaSyC3labKZdcDmWRRO3y7xdw0LKOAjviQL5Q"; // Replace with process.env.GEMINI_API_KEY in production
+    const apiKey = process.env.GEMINI_API_KEY; // Replace with process.env.GEMINI_API_KEY in production
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }

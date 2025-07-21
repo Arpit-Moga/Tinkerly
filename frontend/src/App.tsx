@@ -30,13 +30,7 @@ function App() {
         {/* Left Panel - Chat Interface */}
         <div className="w-96 border-r border-gray-700 flex flex-col bg-gray-800">
           <ErrorBoundary>
-            {!selectedFramework ? (
-              <div className="p-6">
-                <FrameworkSelector />
-              </div>
-            ) : (
-              <ChatInterface />
-            )}
+            <ChatInterface />
           </ErrorBoundary>
         </div>
 

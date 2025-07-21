@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { codeGenerationRouter } from './routes/code-generation.js';
+import { streamingRouter } from './routes/streaming.js';
 import { healthRouter } from './routes/health.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -37,6 +38,7 @@ app.use(morgan('combined'));
 // Routes
 app.use('/api/health', healthRouter);
 app.use('/api/generate', codeGenerationRouter);
+app.use('/api/generate/stream', streamingRouter);
 
 // Error handling middleware
 app.use(errorHandler);

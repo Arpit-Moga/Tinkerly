@@ -7,6 +7,7 @@ export interface GenerateCodeRequest {
   prompt: string;
   framework: 'react' | 'vue' | 'svelte' | 'angular' | 'nodejs';
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  currentFiles?: Record<string, string>;
 }
 
 export interface GenerateCodeResponse {
@@ -48,10 +49,41 @@ export class LLMService {
       const response = await result.response;
       const text = response.text();
 
+      console.log('LLM response received, length:', text.length);
       return this.parseGenerationResponse(text);
     } catch (error) {
       console.error('LLM generation error:', error);
       throw new Error('Failed to generate code. Please try again.');
+    }
+  }
+
+  async generateCodeWithStreaming(
+    request: GenerateCodeRequest,
+    onChunk?: (chunk: string) => void
+  ): Promise<GenerateCodeResponse> {
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const prompt = this.buildGenerationPrompt(request);
+
+    try {
+      const result = await model.generateContentStream(prompt);
+      let fullText = '';
+
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        fullText += chunkText;
+        
+        // Send chunk to client if callback provided
+        if (onChunk && chunkText) {
+          onChunk(chunkText);
+        }
+      }
+
+      return this.parseGenerationResponse(fullText);
+    } catch (error) {
+      console.error('LLM streaming generation error:', error);
+      // Fallback to regular generation
+      return this.generateCode(request);
     }
   }
 
@@ -86,7 +118,7 @@ export class LLMService {
   }
 
   private buildGenerationPrompt(request: GenerateCodeRequest): string {
-    const { prompt, framework, conversationHistory = [] } = request;
+    const { prompt, framework, conversationHistory = [], currentFiles = {} } = request;
     
     const frameworkName = framework.charAt(0).toUpperCase() + framework.slice(1);
     
@@ -97,10 +129,17 @@ export class LLMService {
       ).join('\n')}\n`;
     }
 
+    let filesContext = '';
+    if (Object.keys(currentFiles).length > 0) {
+      filesContext = `\n\nCURRENT PROJECT FILES:\n${Object.keys(currentFiles).map(path => 
+        `${path}: ${currentFiles[path].substring(0, 200)}${currentFiles[path].length > 200 ? '...' : ''}`
+      ).join('\n\n')}\n\nPlease consider the existing code structure when making changes. If modifying existing files, maintain consistency with the current codebase.`;
+    }
+
     return `You are an expert ${frameworkName} developer. Generate a complete, production-ready ${frameworkName} project based on the user's request.
 
 CRITICAL REQUIREMENTS:
-1. Return a single JSON object with ALL files and code needed for live preview in WebContainer
+1. You MUST respond with ONLY a valid JSON object - no other text before or after
 2. Include ALL necessary files: package.json, configuration files, source files, HTML, CSS, etc.
 3. Use TypeScript and Tailwind CSS for styling (except for Node.js backend projects)
 4. Follow ${frameworkName} best practices and modern patterns
@@ -111,8 +150,7 @@ CRITICAL REQUIREMENTS:
 9. Ensure the project can run with 'npm install && npm run dev'
 10. Handle edge cases and provide good UX
 
-RESPONSE FORMAT (MUST BE VALID JSON):
-\`\`\`json
+RESPONSE FORMAT - RESPOND WITH ONLY THIS JSON (NO MARKDOWN, NO EXPLANATION OUTSIDE JSON):
 {
   "files": {
     "package.json": "complete package.json with all dependencies",
@@ -123,13 +161,18 @@ RESPONSE FORMAT (MUST BE VALID JSON):
     "tailwind.config.js": "tailwind configuration",
     "tsconfig.json": "typescript configuration",
     "postcss.config.js": "postcss configuration",
-    "src/index.css": "main CSS file with Tailwind imports",
-    // ... include ALL necessary files for the project
+    "src/index.css": "main CSS file with Tailwind imports"
   },
-  "message": "Friendly conversational response explaining what was created and how to use it",
+  "explanation": "Brief conversational response explaining what was created (2-3 sentences max, NO CODE)",
   "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
 }
-\`\`\`
+
+CRITICAL: 
+- Start your response immediately with { and end with }
+- NO markdown code blocks, NO explanatory text outside the JSON
+- The "explanation" field should ONLY contain a brief description of what was built
+- DO NOT include any code, file contents, or technical details in the explanation
+- Keep explanation conversational and user-friendly
 
 FRAMEWORK SPECIFIC REQUIREMENTS:
 
@@ -138,6 +181,8 @@ ${this.getFrameworkSpecificInstructions(framework)}
 ${contextPrompt}
 
 USER REQUEST: ${prompt}
+
+${filesContext}
 
 Generate a complete, working ${frameworkName} application that fulfills the user's request. Include all necessary files for live preview in WebContainer. Make it visually appealing with Tailwind CSS and ensure it's fully functional.`;
   }
@@ -175,24 +220,60 @@ Check for:
 
   private parseGenerationResponse(text: string): GenerateCodeResponse {
     try {
-      // Extract JSON from the response
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+      console.log('Raw LLM response:', text.substring(0, 500) + '...');
       
-      if (!jsonMatch) {
+      // Try multiple JSON extraction patterns
+      let jsonText = '';
+      
+      // Pattern 1: JSON code block
+      const jsonBlockMatch = text.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonBlockMatch) {
+        jsonText = jsonBlockMatch[1];
+      } else {
+        // Pattern 2: Find JSON object
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonText = jsonMatch[0];
+        } else {
+          // Pattern 3: Extract between first { and last }
+          const firstBrace = text.indexOf('{');
+          const lastBrace = text.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = text.substring(firstBrace, lastBrace + 1);
+          }
+        }
+      }
+
+      if (!jsonText) {
+        console.error('No JSON found in response');
         throw new Error('No valid JSON found in response');
       }
 
-      const jsonText = jsonMatch[1] || jsonMatch[0];
+      console.log('Extracted JSON:', jsonText.substring(0, 200) + '...');
+      
       const parsed = JSON.parse(jsonText);
 
-      return {
+      // Ensure all required fields exist
+      const response = {
         files: parsed.files || {},
-        message: parsed.message || 'Code generated successfully!',
+        message: parsed.explanation || parsed.message || 'Code generated successfully!',
         suggestions: parsed.suggestions || []
       };
+
+      console.log('Parsed response keys:', Object.keys(response));
+      console.log('Files count:', Object.keys(response.files).length);
+
+      return response;
     } catch (error) {
       console.error('Failed to parse generation response:', error);
-      throw new Error('Invalid response format from AI model');
+      console.error('Raw text length:', text.length);
+      
+      // Fallback response
+      return {
+        files: {},
+        message: 'I generated some code but had trouble formatting the response. Please try again.',
+        suggestions: []
+      };
     }
   }
 

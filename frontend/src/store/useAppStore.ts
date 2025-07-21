@@ -22,6 +22,10 @@ interface AppState {
   generatedFiles: FileContent;
   setGeneratedFiles: (files: FileContent) => void;
   updateFile: (path: string, content: string) => void;
+  
+  // Auto-preview trigger
+  shouldAutoStartPreview: boolean;
+  setShouldAutoStartPreview: (should: boolean) => void;
 
   // Chat
   chatMessages: ChatMessage[];
@@ -55,10 +59,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Generated files
   generatedFiles: {},
-  setGeneratedFiles: (files) => set({ generatedFiles: files }),
+  setGeneratedFiles: (files) => set({ 
+    generatedFiles: files,
+    shouldAutoStartPreview: Object.keys(files).length > 0
+  }),
   updateFile: (path, content) => set((state) => ({
     generatedFiles: { ...state.generatedFiles, [path]: content }
   })),
+  
+  // Auto-preview trigger
+  shouldAutoStartPreview: false,
+  setShouldAutoStartPreview: (should) => set({ shouldAutoStartPreview: should }),
 
   // Chat
   chatMessages: [],

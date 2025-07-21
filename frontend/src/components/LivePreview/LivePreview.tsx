@@ -11,6 +11,8 @@ export const LivePreview: React.FC = () => {
     setPreviewUrl,
     isWebContainerReady,
     setIsWebContainerReady,
+    shouldAutoStartPreview,
+    setShouldAutoStartPreview,
     addLog,
   } = useAppStore();
 
@@ -118,6 +120,36 @@ export const LivePreview: React.FC = () => {
       addLogWithTimestamp('🛑 Preview stopped');
     }
   };
+
+  // Auto-start preview when files are generated
+  useEffect(() => {
+    if (shouldAutoStartPreview && !isRunning && !isStarting && Object.keys(generatedFiles).length > 0) {
+      setShouldAutoStartPreview(false);
+      startPreview();
+    }
+  }, [shouldAutoStartPreview, isRunning, isStarting, generatedFiles, setShouldAutoStartPreview]);
+
+  // Check server status when component mounts or view changes
+  useEffect(() => {
+    if (webContainerManagerRef.current && Object.keys(generatedFiles).length > 0) {
+      const status = webContainerManagerRef.current.getServerStatus();
+      if (status.isRunning && !isRunning) {
+        // Server is running but UI doesn't know about it
+        setIsRunning(true);
+        // Try to detect the URL
+        const checkPorts = [4173, 4200, 8080, 5000, 3001, 8000];
+        checkPorts.forEach(async (port) => {
+          try {
+            await fetch(`http://localhost:${port}`, { method: 'HEAD', mode: 'no-cors' });
+            setPreviewUrl(`http://localhost:${port}`);
+            addLogWithTimestamp(`🔗 Reconnected to server at port ${port}`);
+          } catch (e) {
+            // Continue checking
+          }
+        });
+      }
+    }
+  }, [generatedFiles, isRunning, addLogWithTimestamp]);
 
   const refreshPreview = () => {
     if (iframeRef.current) {

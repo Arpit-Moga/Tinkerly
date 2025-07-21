@@ -4,9 +4,10 @@ import { FileContent } from '../store/useAppStore';
 // Singleton pattern to ensure only one WebContainer instance
 let webContainerInstance: WebContainer | null = null;
 let isBooting = false;
+let devServerProcess: any = null;
+let isServerRunning = false;
 
 export class WebContainerManager {
-  private devServerProcess: any = null;
 
   async initialize(): Promise<void> {
     // Return existing instance if already booted
@@ -130,11 +131,26 @@ export class WebContainerManager {
     const webcontainer = this.getWebContainer();
 
     try {
+      // If server is already running, return existing URL
+      if (isServerRunning && devServerProcess) {
+        console.log('Dev server already running, checking ports...');
+        const checkPorts = [4173, 4200, 8080, 5000, 3001, 8000];
+        for (const port of checkPorts) {
+          try {
+            await fetch(`http://localhost:${port}`, { method: 'HEAD', mode: 'no-cors' });
+            return `http://localhost:${port}`;
+          } catch (e) {
+            // Continue checking
+          }
+        }
+      }
+
       // Start the dev server
-      this.devServerProcess = await webcontainer.spawn('npm', ['run', 'dev']);
+      devServerProcess = await webcontainer.spawn('npm', ['run', 'dev']);
+      isServerRunning = true;
       
       if (onOutput) {
-        this.devServerProcess.output.pipeTo(new WritableStream({
+        devServerProcess.output.pipeTo(new WritableStream({
           write(data) {
             onOutput(data);
           }
@@ -218,15 +234,17 @@ export class WebContainerManager {
       return url;
     } catch (error) {
       console.error('Failed to start dev server:', error);
+      isServerRunning = false;
       throw new Error('Failed to start development server');
     }
   }
 
   async stopDevServer(): Promise<void> {
-    if (this.devServerProcess) {
+    if (devServerProcess) {
       try {
-        this.devServerProcess.kill();
-        this.devServerProcess = null;
+        devServerProcess.kill();
+        devServerProcess = null;
+        isServerRunning = false;
         console.log('Dev server stopped');
       } catch (error) {
         console.error('Failed to stop dev server:', error);
@@ -247,11 +265,19 @@ export class WebContainerManager {
   }
 
   cleanup(): void {
-    if (this.devServerProcess) {
-      this.devServerProcess.kill();
-      this.devServerProcess = null;
+    if (devServerProcess) {
+      devServerProcess.kill();
+      devServerProcess = null;
+      isServerRunning = false;
     }
     // Don't cleanup the global WebContainer instance as it might be used by other components
+  }
+
+  getServerStatus(): { isRunning: boolean; hasProcess: boolean } {
+    return {
+      isRunning: isServerRunning,
+      hasProcess: !!devServerProcess
+    };
   }
 
   private convertFilesToWebContainerFormat(files: FileContent): any {

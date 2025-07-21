@@ -22,6 +22,7 @@ import { config, configUtils } from './config/index.js';
 import { codeGenerationRouter } from './routes/code-generation.js';
 import { streamingRouter } from './routes/streaming.js';
 import { healthRouter } from './routes/health.js';
+import { initializeServices, serviceContainerMiddleware, disposeServices } from './services/service-initializer.js';
 import { 
   errorHandler, 
   notFoundHandler,
@@ -32,11 +33,20 @@ import {
 } from './middleware/error-handler.js';
 import { validateContentType, validateRateLimit } from './middleware/validate-request.js';
 
+// Global service container for cleanup
+let globalServiceContainer: any = null;
+
 /**
  * Initialize Express application with comprehensive middleware setup
  */
 const createApp = (): express.Application => {
   const app = express();
+
+  // Initialize service container
+  globalServiceContainer = initializeServices();
+  
+  // Inject service container into all requests
+  app.use(serviceContainerMiddleware(globalServiceContainer));
 
   // Trust proxy for accurate IP addresses (important for rate limiting)
   app.set('trust proxy', 1);
@@ -122,33 +132,43 @@ const setupProcessHandlers = (server: any) => {
   // Handle uncaught exceptions
   process.on('uncaughtException', uncaughtExceptionHandler);
 
-  // Graceful shutdown on SIGTERM
-  process.on('SIGTERM', () => {
-    console.log('📡 SIGTERM received, starting graceful shutdown...');
+  // Graceful shutdown function
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`📡 ${signal} received, starting graceful shutdown...`);
     
-    server.close((err: Error) => {
-      if (err) {
-        shutdownErrorHandler(err);
-      }
+    try {
+      // Close server first
+      await new Promise<void>((resolve, reject) => {
+        server.close((err: Error) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
       
       console.log('✅ Server closed successfully');
+      
+      // Dispose of services
+      if (globalServiceContainer) {
+        await disposeServices(globalServiceContainer);
+      }
+      
+      console.log('✅ Graceful shutdown completed');
       process.exit(0);
-    });
-  });
+    } catch (error) {
+      console.error('❌ Error during graceful shutdown:', error);
+      shutdownErrorHandler(error as Error);
+      process.exit(1);
+    }
+  };
+
+  // Graceful shutdown on SIGTERM
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
   // Graceful shutdown on SIGINT (Ctrl+C)
-  process.on('SIGINT', () => {
-    console.log('📡 SIGINT received, starting graceful shutdown...');
-    
-    server.close((err: Error) => {
-      if (err) {
-        shutdownErrorHandler(err);
-      }
-      
-      console.log('✅ Server closed successfully');
-      process.exit(0);
-    });
-  });
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 };
 
 /**

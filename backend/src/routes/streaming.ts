@@ -1,10 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { LLMService } from '../services/llm-service.js';
 import { validateRequest } from '../middleware/validate-request.js';
+import { 
+  ICodeGenerationService, 
+  SERVICE_TOKENS 
+} from '../services/abstractions/index.js';
+import { ServiceContainer } from '../services/container/service-container.js';
 
 const router = Router();
-const llmService = new LLMService();
+
+// Service container will be injected via middleware
+let codeGenerationService: ICodeGenerationService;
 
 // Request validation schema for streaming
 const generateCodeStreamSchema = z.object({
@@ -38,7 +44,11 @@ router.post('/', validateRequest(generateCodeStreamSchema), async (req, res, nex
     });
 
     try {
-      const result = await llmService.generateCodeWithStreaming({
+      // Get service from container attached to request
+      const container = (req as any).serviceContainer as ServiceContainer;
+      codeGenerationService = container.resolve<ICodeGenerationService>(SERVICE_TOKENS.CODE_GENERATION_SERVICE);
+
+      const result = await codeGenerationService.generateCodeWithStreaming({
         prompt,
         framework,
         conversationHistory,
@@ -46,7 +56,7 @@ router.post('/', validateRequest(generateCodeStreamSchema), async (req, res, nex
       }, (chunk: string) => {
         // Filter out code blocks and JSON from streaming to avoid UI issues
         if (!chunk.includes('```') && !chunk.includes('{') && !chunk.includes('}') && chunk.trim().length > 0) {
-          res.write(`data: ${JSON.stringify({ type: 'message_chunk', content: chunk })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'message_chunk', content: chunk })}\\n\\n`);
         }
       });
 

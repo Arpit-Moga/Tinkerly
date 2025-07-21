@@ -1,10 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { LLMService } from '../services/llm-service.js';
 import { validateRequest } from '../middleware/validate-request.js';
+import { 
+  ICodeGenerationService, 
+  ITemplateService,
+  SERVICE_TOKENS 
+} from '../services/abstractions/index.js';
+import { ServiceContainer } from '../services/container/service-container.js';
 
 const router = Router();
-const llmService = new LLMService();
+
+// Service container will be injected via middleware
+let codeGenerationService: ICodeGenerationService;
 
 // Request validation schema
 const generateCodeSchema = z.object({
@@ -27,7 +34,11 @@ router.post('/', validateRequest(generateCodeSchema), async (req, res, next) => 
 
     console.log(`🤖 Generating ${framework} code for prompt: "${prompt.substring(0, 100)}..."`);
 
-    const result = await llmService.generateCode({
+    // Get service from container attached to request
+    const container = (req as any).serviceContainer as ServiceContainer;
+    codeGenerationService = container.resolve<ICodeGenerationService>(SERVICE_TOKENS.CODE_GENERATION_SERVICE);
+
+    const result = await codeGenerationService.generateCode({
       prompt,
       framework,
       conversationHistory
@@ -56,7 +67,11 @@ router.post('/validate', validateRequest(z.object({
   try {
     const { files, framework } = req.body;
 
-    const validation = await llmService.validateCode({
+    // Get service from container attached to request
+    const container = (req as any).serviceContainer as ServiceContainer;
+    codeGenerationService = container.resolve<ICodeGenerationService>(SERVICE_TOKENS.CODE_GENERATION_SERVICE);
+
+    const validation = await codeGenerationService.validateCode({
       files,
       framework
     });
@@ -84,7 +99,13 @@ router.get('/templates/:framework', async (req, res, next) => {
       });
     }
 
-    const template = await llmService.getFrameworkTemplate(framework);
+    // Get service from container attached to request
+    const container = (req as any).serviceContainer as ServiceContainer;
+    codeGenerationService = container.resolve<ICodeGenerationService>(SERVICE_TOKENS.CODE_GENERATION_SERVICE);
+
+    // Get template service from container
+    const templateService = container.resolve<ITemplateService>(SERVICE_TOKENS.TEMPLATE_SERVICE);
+    const template = await templateService.getFrameworkTemplate(framework);
 
     res.json({
       success: true,

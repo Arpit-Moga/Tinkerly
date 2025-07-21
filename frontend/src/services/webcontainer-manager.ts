@@ -176,7 +176,7 @@ export class WebContainerManager {
         });
 
         // Also check common dev server ports manually
-        const checkPorts = [4173, 4200, 8080, 5000, 3001, 8000];
+        const checkPorts = [5173, 4173, 4200, 8080, 5000, 3001, 8000];
         let checkAttempts = 0;
         const maxAttempts = 20;
 

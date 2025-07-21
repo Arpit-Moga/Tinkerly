@@ -272,8 +272,8 @@ export const validateRateLimit = (
  */
 export const validateContentType = (allowedTypes: string[] = ['application/json']) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Skip validation for GET requests
-    if (req.method === 'GET') {
+    // Skip validation for GET, HEAD, and OPTIONS requests
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       return next();
     }
 

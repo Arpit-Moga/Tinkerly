@@ -10,17 +10,20 @@ export const Console: React.FC = () => {
     consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  const getLogColor = (log: string) => {
-    if (log.includes('❌') || log.toLowerCase().includes('error')) {
+  const getLogColor = (log: any) => {
+    // Convert log to string if it's not already
+    const logStr = typeof log === 'string' ? log : JSON.stringify(log);
+    
+    if (logStr.includes('❌') || logStr.toLowerCase().includes('error')) {
       return 'text-red-400';
     }
-    if (log.includes('⚠️') || log.toLowerCase().includes('warn')) {
+    if (logStr.includes('⚠️') || logStr.toLowerCase().includes('warn')) {
       return 'text-yellow-400';
     }
-    if (log.includes('✅') || log.includes('🎉')) {
+    if (logStr.includes('✅') || logStr.includes('🎉')) {
       return 'text-green-400';
     }
-    if (log.includes('npm:') || log.includes('dev:')) {
+    if (logStr.includes('npm:') || logStr.includes('dev:')) {
       return 'text-blue-400';
     }
     return 'text-gray-300';
@@ -62,7 +65,7 @@ export const Console: React.FC = () => {
                 key={index}
                 className={`${getLogColor(log)} leading-relaxed`}
               >
-                {log}
+                {typeof log === 'string' ? log : JSON.stringify(log, null, 2)}
               </div>
             ))}
             <div ref={consoleEndRef} />

@@ -16,16 +16,8 @@ class Container(containers.DeclarativeContainer):
     # Configuration
     config = providers.Object(settings)
     
-    # Cache Service (Redis with Memory fallback)
-    redis_cache = providers.Singleton(RedisCacheService)
-    memory_cache = providers.Singleton(MemoryCacheService, max_size=500)
-    
-    # Use Redis if available, otherwise Memory cache
-    cache_service = providers.Selector(
-        "redis_url" in settings.model_dump() and settings.redis_url,
-        redis=redis_cache,
-        memory=memory_cache
-    )
+    # Cache Service (use Memory cache for simplicity)
+    cache_service = providers.Singleton(MemoryCacheService, max_size=500)
     
     # Prompt Service
     prompt_service = providers.Singleton(PromptService)

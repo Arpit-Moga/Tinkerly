@@ -1,4 +1,5 @@
 import { Framework, FileContent } from '../store/useAppStore';
+import { configUtils } from '../config';
 
 export interface LLMResponse {
   files: FileContent;
@@ -11,11 +12,64 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ValidationResponse {
+  is_valid: boolean;
+  errors: string[];
+  warnings: string[];
+  suggestions: string[];
+}
+
+export interface ProviderInfo {
+  provider: string;
+  available: boolean;
+  available_providers?: string[];
+}
+
 export class LLMService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    this.baseUrl = configUtils.getActiveBackendUrl();
+  }
+
+  /**
+   * Get available LLM providers (Python backend only)
+   */
+  async getAvailableProviders(): Promise<string[]> {
+    if (!configUtils.isPythonBackend()) {
+      return ['gemini']; // TypeScript backend only supports Gemini
+    }
+
+    try {
+      const response = await fetch(configUtils.getApiUrl('api/v1/providers/available'));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to get available providers:', error);
+      return ['gemini']; // Fallback
+    }
+  }
+
+  /**
+   * Get current provider info (Python backend only)
+   */
+  async getCurrentProvider(): Promise<ProviderInfo> {
+    if (!configUtils.isPythonBackend()) {
+      return { provider: 'gemini', available: true };
+    }
+
+    try {
+      const response = await fetch(configUtils.getApiUrl('api/v1/providers/current'));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to get current provider:', error);
+      return { provider: 'gemini', available: true };
+    }
   }
 
   async generateCodeWithStreaming(
@@ -26,7 +80,12 @@ export class LLMService {
     onChunk?: (chunk: string) => void
   ): Promise<LLMResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/generate/stream`, {
+      // Use different endpoints based on backend type
+      const endpoint = configUtils.isPythonBackend() 
+        ? 'api/v1/stream/' 
+        : 'api/generate/stream';
+      
+      const response = await fetch(configUtils.getApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -34,8 +93,8 @@ export class LLMService {
         body: JSON.stringify({
           prompt: userRequest,
           framework,
-          conversationHistory,
-          currentFiles
+          conversation_history: conversationHistory, // Python backend uses snake_case
+          current_files: currentFiles
         }),
       });
 
@@ -45,7 +104,8 @@ export class LLMService {
           return this.generateCode(userRequest, framework, conversationHistory);
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage = errorData.error?.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
 
       const reader = response.body?.getReader();
@@ -110,32 +170,56 @@ export class LLMService {
     conversationHistory: ChatMessage[] = []
   ): Promise<LLMResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/generate`, {
+      // Use different endpoints based on backend type
+      const endpoint = configUtils.isPythonBackend() 
+        ? 'api/v1/generate/' 
+        : 'api/generate';
+
+      const requestBody = configUtils.isPythonBackend() 
+        ? {
+            prompt: userRequest,
+            framework,
+            conversation_history: conversationHistory,
+            current_files: {}
+          }
+        : {
+            prompt: userRequest,
+            framework,
+            conversationHistory
+          };
+
+      const response = await fetch(configUtils.getApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: userRequest,
-          framework,
-          conversationHistory
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage = errorData.error?.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
       
-      if (!data.success) {
-        throw new Error(data.error?.message || 'Failed to generate code');
+      // Handle different response formats
+      if (configUtils.isPythonBackend()) {
+        // Python backend returns data directly
+        if (!data.files) {
+          throw new Error('Invalid response format from Python backend');
+        }
+      } else {
+        // TypeScript backend wraps data in success/data structure
+        if (!data.success) {
+          throw new Error(data.error?.message || 'Failed to generate code');
+        }
       }
 
       // Ensure all file contents are strings
       const processedFiles: FileContent = {};
-      const rawFiles = data.data.files || {};
+      const rawFiles = configUtils.isPythonBackend() ? data.files : (data.data?.files || {});
       
       Object.entries(rawFiles).forEach(([path, content]) => {
         if (typeof content === 'object' && content !== null) {
@@ -147,10 +231,18 @@ export class LLMService {
         }
       });
 
+      const explanation = configUtils.isPythonBackend() 
+        ? data.explanation 
+        : (data.data?.message || data.data?.explanation);
+
+      const suggestions = configUtils.isPythonBackend() 
+        ? data.suggestions 
+        : data.data?.suggestions;
+
       return {
         files: processedFiles,
-        message: data.data.message || 'Code generated successfully!',
-        suggestions: data.data.suggestions || []
+        message: explanation || 'Code generated successfully!',
+        suggestions: suggestions || []
       };
     } catch (error) {
       console.error('LLM Service Error:', error);
@@ -163,14 +255,14 @@ export class LLMService {
     }
   }
 
-  async validateCode(files: FileContent, framework: Framework): Promise<{
-    isValid: boolean;
-    errors: string[];
-    warnings: string[];
-    suggestions: string[];
-  }> {
+  async validateCode(files: FileContent, framework: Framework): Promise<ValidationResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/generate/validate`, {
+      // Use different endpoints based on backend type
+      const endpoint = configUtils.isPythonBackend() 
+        ? 'api/v1/generate/validate' 
+        : 'api/generate/validate';
+
+      const response = await fetch(configUtils.getApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,16 +274,35 @@ export class LLMService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      return data.data;
+      
+      if (configUtils.isPythonBackend()) {
+        // Python backend returns data directly
+        return {
+          is_valid: data.is_valid ?? true,
+          errors: data.errors || [],
+          warnings: data.warnings || [],
+          suggestions: data.suggestions || []
+        };
+      } else {
+        // TypeScript backend wraps data
+        return {
+          is_valid: data.data?.isValid ?? true,
+          errors: data.data?.errors || [],
+          warnings: data.data?.warnings || [],
+          suggestions: data.data?.suggestions || []
+        };
+      }
     } catch (error) {
       console.error('Validation Error:', error);
       return {
-        isValid: false,
-        errors: ['Failed to validate code'],
+        is_valid: false,
+        errors: [`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
         warnings: [],
         suggestions: []
       };

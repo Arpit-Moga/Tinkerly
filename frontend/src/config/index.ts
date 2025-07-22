@@ -31,6 +31,10 @@ const configSchema = z.object({
     geminiApiKey: z.string().optional(),
     backendUrl: z.string().url().default('http://localhost:3001'),
     timeout: z.coerce.number().min(1000).max(300000).default(30000),
+    // Backend selection
+    useTypescriptBackend: z.boolean().default(false),
+    typescriptBackendUrl: z.string().url().default('http://localhost:3001'),
+    pythonBackendUrl: z.string().url().default('http://localhost:3001'),
   }),
   
   // Feature Flags
@@ -42,6 +46,11 @@ const configSchema = z.object({
     darkMode: z.boolean().default(true),
     debugMode: z.boolean().default(false),
     analytics: z.boolean().default(false),
+    // New Python backend features
+    multiLlmProviders: z.boolean().default(true),
+    advancedPrompts: z.boolean().default(true),
+    intelligentCaching: z.boolean().default(true),
+    performanceMonitoring: z.boolean().default(true),
   }),
   
   // UI Configuration
@@ -98,6 +107,10 @@ const rawConfig = {
     geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY,
     backendUrl: import.meta.env.VITE_BACKEND_URL,
     timeout: import.meta.env.VITE_API_TIMEOUT,
+    // Backend selection
+    useTypescriptBackend: import.meta.env.VITE_USE_TYPESCRIPT_BACKEND === 'true',
+    typescriptBackendUrl: import.meta.env.VITE_TYPESCRIPT_BACKEND_URL || 'http://localhost:3001',
+    pythonBackendUrl: import.meta.env.VITE_PYTHON_BACKEND_URL || 'http://localhost:3001',
   },
   
   features: {
@@ -108,6 +121,11 @@ const rawConfig = {
     darkMode: import.meta.env.VITE_FEATURE_DARK_MODE !== 'false',
     debugMode: import.meta.env.VITE_FEATURE_DEBUG_MODE === 'true',
     analytics: import.meta.env.VITE_FEATURE_ANALYTICS === 'true',
+    // New Python backend features
+    multiLlmProviders: import.meta.env.VITE_FEATURE_MULTI_LLM !== 'false',
+    advancedPrompts: import.meta.env.VITE_FEATURE_ADVANCED_PROMPTS !== 'false',
+    intelligentCaching: import.meta.env.VITE_FEATURE_INTELLIGENT_CACHING !== 'false',
+    performanceMonitoring: import.meta.env.VITE_FEATURE_PERFORMANCE_MONITORING !== 'false',
   },
   
   ui: {
@@ -205,12 +223,35 @@ export const configUtils = {
   isTest: (): boolean => config.app.environment === 'test',
   
   /**
-   * Get API endpoint URL
+   * Get API endpoint URL (uses selected backend)
    */
   getApiUrl: (endpoint: string): string => {
-    const baseUrl = config.api.backendUrl.replace(/\/$/, '');
+    const baseUrl = configUtils.getActiveBackendUrl().replace(/\/$/, '');
     const cleanEndpoint = endpoint.replace(/^\//, '');
     return `${baseUrl}/${cleanEndpoint}`;
+  },
+
+  /**
+   * Get the active backend URL based on configuration
+   */
+  getActiveBackendUrl: (): string => {
+    return config.api.useTypescriptBackend 
+      ? config.api.typescriptBackendUrl 
+      : config.api.pythonBackendUrl;
+  },
+
+  /**
+   * Get backend type
+   */
+  getBackendType: (): 'typescript' | 'python' => {
+    return config.api.useTypescriptBackend ? 'typescript' : 'python';
+  },
+
+  /**
+   * Check if Python backend features are available
+   */
+  isPythonBackend: (): boolean => {
+    return !config.api.useTypescriptBackend;
   },
   
   /**
